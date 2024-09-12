@@ -81,7 +81,7 @@ summary_type = st.selectbox("Select Summary Type", ["Summarize the document in 1
 language = st.selectbox("Select Output Language", ["English", "French", "Spanish"])
 
     # Step 10: Option to select LLM models
-llm_model = st.sidebar.selectbox("Select LLM", ["OpenAI", "Claude", "Google Gemini"])
+llm_model = st.sidebar.selectbox("Select LLM", ["OpenAI", "Claude", "Google Gemini", "OpenAI Advanced", "Claude Advanced"])
 
 
     # Step 6: Display summary
@@ -119,6 +119,32 @@ if st.button("Summarize"):
                     st.write("Google's Gemini  Response:")
                     gemini.configure(api_key=gemini_key)
                     model = gemini.GenerativeModel('gemini-1.5-flash')
+                    response = model.generate_content(messages_google)
+                    st.write(response.text)
+                    st.write("Gemini: ")
+                
+                elif llm_model == "OpenAI Advanced":
+                    stream = client.chat.completions.create(
+                         model="gpt-4o",
+                         messages=messages_openai,
+                         stream=True,)
+                    st.write("Open AI:")
+                    st.write_stream(stream)
+
+                elif llm_model =="Claude Advanced":
+                    st.write("Claude:")
+                    response: Message = clientclaude.messages.create(
+			        max_tokens=256,
+				    messages= messages_claude,
+				    model="claude-3-5-sonnet-20240620",
+				    temperature=0.5,)
+                    answer = response.content[0].text
+                    st.write(answer)
+
+                elif llm_model == "Google Gemini":
+                    st.write("Google's Gemini  Response:")
+                    gemini.configure(api_key=gemini_key)
+                    model = gemini.GenerativeModel('gemini-1.5-pro-exp-0827')
                     response = model.generate_content(messages_google)
                     st.write(response.text)
                     st.write("Gemini: ")
