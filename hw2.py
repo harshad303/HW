@@ -14,7 +14,7 @@ st.title("This is HW 2")
 ##openai_api_key = st.text_input("OpenAI API Key", type="password")
 
 openai_api_key = st.secrets["OPENAI_KEY"] 
-gemini_key = st.secrets["g_key"]
+#gemini_key = st.secrets["g_key"]
 claude_key = st.secrets["CLAUDE_KEY"]
 #if not openai_api_key: 
 #    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
@@ -83,6 +83,7 @@ language = st.selectbox("Select Output Language", ["English", "French", "Spanish
     # Step 10: Option to select LLM models
 llm_model = st.sidebar.selectbox("Select LLM", ["OpenAI", "Claude", "Google Gemini", "OpenAI Advanced", "Claude Advanced", "Google Gemini Advanced"])
 
+advanced = st.sidebar.checkbox("Use Advanced Model")
 
     # Step 6: Display summary
 if st.button("Summarize"):
@@ -99,18 +100,20 @@ if st.button("Summarize"):
 		"content": f"Here's a document: {content} \n\n---\n\n {summary_type} in {language}"}]
                 messages_google = f"Here's a document: {content} \n\n---\n\n {summary_type} in {language}"
                 if llm_model == "OpenAI":
+                    openai_model = "gpt-4o" if advanced else "gpt-4o-mini"
                     stream = client.chat.completions.create(
-                         model="gpt-4o-mini",
+                         model = openai_model,
                          messages=messages_openai,
                          stream=True,)
                     st.write("Open AI's Response:")
                     st.write_stream(stream)
                 elif llm_model =="Claude":
                     st.write("Claude:")
+                    claude_model = "claude-3-5-sonnet-20240620" if advanced else "claude-3-haiku-20240307"
                     response: Message = clientclaude.messages.create(
 			        max_tokens=256,
 				    messages= messages_claude,
-				    model="claude-3-haiku-20240307",
+				    model= claude_model,
 				    temperature=0.5,)
                     answer = response.content[0].text
                     st.write(answer)
@@ -118,35 +121,11 @@ if st.button("Summarize"):
                 elif llm_model == "Google Gemini":
                     st.write("Google's Gemini  Response:")
                     gemini.configure(api_key=gemini_key)
-                    model = gemini.GenerativeModel('gemini-1.5-flash')
+                    gemini_model = 'gemini-1.5-flash' if advanced else 'gemini-1.5-pro-exp-0827'
+                    model = gemini.GenerativeModel()
                     response = model.generate_content(messages_google)
                     st.write(response.text)
                     st.write("Gemini: ")
-                
-                elif llm_model == "OpenAI Advanced":
-                    stream = client.chat.completions.create(
-                         model="gpt-4o",
-                         messages=messages_openai,
-                         stream=True,)
-                    st.write("Open AI:")
-                    st.write_stream(stream)
-
-                elif llm_model =="Claude Advanced":
-                    st.write("Claude:")
-                    response: Message = clientclaude.messages.create(
-			        max_tokens=256,
-				    messages= messages_claude,
-				    model="claude-3-5-sonnet-20240620",
-				    temperature=0.5,)
-                    answer = response.content[0].text
-                    st.write(answer)
-
-                elif llm_model == "Google Gemini Advanced":
-                    st.write("Gemini:")
-                    gemini.configure(api_key=gemini_key)
-                    model = gemini.GenerativeModel('gemini-1.5-pro-exp-0827')
-                    response = model.generate_content(messages_google)
-                    st.write(response.text)
                     
 
         else:
