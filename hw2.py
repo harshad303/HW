@@ -119,13 +119,12 @@ if st.button("Summarize"):
                     st.write(answer)
                     
                 elif llm_model == "Google Gemini":
-                    st.write("Google's Gemini  Response:")
+                    st.write("Gemini: ")
                     gemini.configure(api_key=gemini_key)
                     gemini_model = 'gemini-1.5-flash' if advanced else 'gemini-1.5-pro-exp-0827'
                     model = gemini.GenerativeModel()
                     response = model.generate_content(messages_google)
                     st.write(response.text)
-                    st.write("Gemini: ")
                     
 
         else:

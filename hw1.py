@@ -22,7 +22,7 @@ st.write(
 # Ask user for their OpenAI API key via st.text_input.
 openai_api_key = st.text_input("OpenAI API Key", type="password")
 if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝")
+    st.info("Please add your OpenAI API key to continue.")
 else:
     # Create an OpenAI client.
     client = OpenAI(api_key=openai_api_key)
@@ -76,4 +76,4 @@ else:
     if not uploaded_file:
         document = None
         file_processed = False
-        st.info("File has been removed. No data is being used from the file.")
+        st.info("File has been removed. No data is being used Pym the file.")
