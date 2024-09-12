@@ -141,13 +141,13 @@ if st.button("Summarize"):
                     answer = response.content[0].text
                     st.write(answer)
 
-                elif llm_model == "Google Gemini":
-                    st.write("Google's Gemini  Response:")
+                elif llm_model == "Google Gemini Advanced":
+                    st.write("Gemini:")
                     gemini.configure(api_key=gemini_key)
                     model = gemini.GenerativeModel('gemini-1.5-pro-exp-0827')
                     response = model.generate_content(messages_google)
                     st.write(response.text)
-                    st.write("Gemini: ")
+                    
 
         else:
             st.error("Please enter a valid URL.")
