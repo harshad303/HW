@@ -4,6 +4,8 @@ import fitz  # PyMuPDF
 import io
 
 # Function to read PDF file
+
+
 def read_pdf(file):
     pdf_document = fitz.open(stream=file.read(), filetype="pdf")
     text = ""
@@ -11,6 +13,7 @@ def read_pdf(file):
         page = pdf_document.load_page(page_num)
         text += page.get_text("text")
     return text
+
 
 # Show title and description.
 st.title("Harshad Hirde - Document Question Answering")
@@ -28,7 +31,8 @@ else:
     client = OpenAI(api_key=openai_api_key)
 
     # Let the user upload a file via st.file_uploader.
-    uploaded_file = st.file_uploader("Upload a document (.pdf or .txt)", type=("pdf", "txt"))
+    uploaded_file = st.file_uploader(
+        "Upload a document (.pdf or .txt)", type=("pdf", "txt"))
 
     # Initialize a flag to check if file was uploaded and processed
     file_processed = False
