@@ -15,6 +15,7 @@ st.title("This is HW 2")
 
 openai_api_key = st.secrets["OPENAI_KEY"] 
 gemini_key = st.secrets["g_key"]
+claude_key = st.secrets["CLAUDE_KEY"]
 #if not openai_api_key: 
 #    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
 #else:
@@ -66,7 +67,10 @@ def read_url_content(url):
         return None
 
 # Create an OpenAI client.
-client = OpenAI(api_key=openai_api_key)  
+client = OpenAI(api_key=openai_api_key) 
+
+# Create an Claude client.
+clientclaude = Anthropic(api_key = claude_key)
 
 url = st.text_input("Enter a URL")
 
@@ -91,6 +95,8 @@ if st.button("Summarize"):
                 "content": f"Here's a document: {content} \n\n---\n\n {summary_type} in {language}",
             }
         ]
+                messages_claude = [{'role': 'user', 
+		"content": f"Here's a document: {content} \n\n---\n\n {summary_type} in {language}"}]
                 messages_google = f"Here's a document: {content} \n\n---\n\n {summary_type} in {language}"
                 if llm_model == "OpenAI":
                     stream = client.chat.completions.create(
@@ -100,8 +106,15 @@ if st.button("Summarize"):
                     st.write("Open AI's Response:")
                     st.write_stream(stream)
                 elif llm_model =="Claude":
-               #Enter code for Claude using Claude Syntax.
-                    st.write("Claude's  Response:")
+                    st.write("Claude:")
+                    response: Message = clientclaude.messages.create(
+			        max_tokens=256,
+				    messages= messages_claude,
+				    model="claude-3-haiku-20240307",
+				    temperature=0.5,)
+                    answer = response.content[0].text
+                    st.write(answer)
+                    
                 elif llm_model == "Google Gemini":
                     st.write("Google's Gemini  Response:")
                     gemini.configure(api_key=gemini_key)
