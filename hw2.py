@@ -81,7 +81,7 @@ summary_type = st.selectbox("Select Summary Type", ["Summarize the document in 1
 language = st.selectbox("Select Output Language", ["English", "French", "Spanish"])
 
     # Step 10: Option to select LLM models
-llm_model = st.sidebar.selectbox("Select LLM", ["OpenAI", "Claude", "Google Gemini", "OpenAI Advanced", "Claude Advanced"])
+llm_model = st.sidebar.selectbox("Select LLM", ["OpenAI", "Claude", "Google Gemini", "OpenAI Advanced", "Claude Advanced", "Google Gemini Advanced"])
 
 
     # Step 6: Display summary
