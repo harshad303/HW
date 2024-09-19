@@ -32,7 +32,7 @@ behavior = st.sidebar.radio(
 selected_llm_for_chatbot = st.sidebar.selectbox(
     "Choose the model for Chatbot",
     (
-        "OpenAI: gpt 3.5",
+        "OpenAI: o1-mini",
         "OpenAI: gpt 4o-mini",
         "Claude: claude-3-haiku-20240307",
         "Claude: claude-3-5-sonnet-20240620 (Advanced)",
