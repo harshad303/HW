@@ -32,7 +32,6 @@ behavior = st.sidebar.radio(
 selected_llm_for_chatbot = st.sidebar.selectbox(
     "Choose the model for Chatbot",
     (
-        "OpenAI: o1-mini",
         "OpenAI: gpt 4o-mini",
         "Claude: claude-3-haiku-20240307",
     
@@ -40,7 +39,7 @@ selected_llm_for_chatbot = st.sidebar.selectbox(
 )
 
 if selected_llm_for_chatbot == "OpenAI: O1-mini":
-    model_to_use_for_chatbot = "o1-mini"
+    model_to_use_for_chatbot = "gpt-4o-mini"
 
 elif selected_llm_for_chatbot == "OpenAI: gpt 4o-mini":
     model_to_use_for_chatbot = "gpt-4o-mini"
@@ -153,7 +152,7 @@ def manage_memory(messages, behavior):
 
 # Function to generate summary (needed for 'Summarize after 5 interactions')
 def generate_summary(text, instruction, model_to_use):
-    if model_to_use in ["o1-mini", "gpt-4o-mini"]:
+    if model_to_use in ["gpt-4o-mini", "gpt-4o-mini"]:
         return summarize_with_openai(text, instruction, model_to_use)
 
     elif model_to_use.startswith("claude"):
@@ -206,7 +205,7 @@ if prompt := st.chat_input("Ask the chatbot a question or interact:"):
 
     # Function to get chatbot response
     def get_chatbot_response(messages, model_to_use):
-        if model_to_use in ["o1-mini", "gpt-4o-mini"]:
+        if model_to_use in ["gpt-4o-mini", "gpt-4o-mini"]:
             return chatbot_response_openai(messages, model_to_use)
         elif model_to_use in ["Claude: claude-3-haiku-20240307"] :
             return chatbot_response_claude(messages, model_to_use)
