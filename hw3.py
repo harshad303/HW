@@ -206,7 +206,7 @@ if prompt := st.chat_input("Ask the chatbot a question or interact:"):
 
     # Function to get chatbot response
     def get_chatbot_response(messages, model_to_use):
-        if model_to_use in ["gpt-3.5-turbo", "gpt-4"]:
+        if model_to_use in ["o1-mini", "gpt-4o-mini"]:
             return chatbot_response_openai(messages, model_to_use)
         elif model_to_use in ["Claude: claude-3-haiku-20240307"] :
             return chatbot_response_claude(messages, model_to_use)
