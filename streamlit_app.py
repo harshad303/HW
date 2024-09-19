@@ -9,8 +9,8 @@ st.title("HW Manager")
 # via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
 
 hw1_page = st.Page("hw1.py", title="HW1")
-hw2_page = st.Page("hw2.py", title="HW2", default=True)
-
-pg = st.navigation([hw1_page, hw2_page])
+hw2_page = st.Page("hw2.py", title="HW2")
+hw3_page = st.Page("hw3.py", title="HW3", default=True)
+pg = st.navigation([hw1_page, hw2_page, hw3_page])
 
 pg.run()
