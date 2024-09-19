@@ -35,7 +35,7 @@ selected_llm_for_chatbot = st.sidebar.selectbox(
         "OpenAI: o1-mini",
         "OpenAI: gpt 4o-mini",
         "Claude: claude-3-haiku-20240307",
-        "Claude: claude-3-5-sonnet-20240620 (Advanced)",
+    
     ),
 )
 
@@ -153,7 +153,7 @@ def manage_memory(messages, behavior):
 
 # Function to generate summary (needed for 'Summarize after 5 interactions')
 def generate_summary(text, instruction, model_to_use):
-    if model_to_use in ["gpt-3.5-turbo", "gpt-4"]:
+    if model_to_use in ["o1-mini", "gpt-4o-mini"]:
         return summarize_with_openai(text, instruction, model_to_use)
 
     elif model_to_use.startswith("claude"):
@@ -208,9 +208,7 @@ if prompt := st.chat_input("Ask the chatbot a question or interact:"):
     def get_chatbot_response(messages, model_to_use):
         if model_to_use in ["gpt-3.5-turbo", "gpt-4"]:
             return chatbot_response_openai(messages, model_to_use)
-        elif model_to_use.startswith("llama"):
-            return chatbot_response_llama(messages, model_to_use)
-        elif model_to_use.startswith("claude"):
+        elif model_to_use in ["Claude: claude-3-haiku-20240307"] :
             return chatbot_response_claude(messages, model_to_use)
         else:
             st.error("Model not supported.")
@@ -223,20 +221,6 @@ if prompt := st.chat_input("Ask the chatbot a question or interact:"):
         assistant_message = response.choices[0].message.content
         return assistant_message
 
-    def chatbot_response_llama(messages, model):
-        llm = OllamaLLM(model=model)
-        # Convert messages into a single prompt
-        prompt = ""
-        for message in messages:
-            if message["role"] == "system":
-                prompt += f"System: {message['content']}\n"
-            elif message["role"] == "user":
-                prompt += f"User: {message['content']}\n"
-            elif message["role"] == "assistant":
-                prompt += f"Assistant: {message['content']}\n"
-        prompt += "Assistant:"
-        response = llm(prompt)
-        return response
 
     def chatbot_response_claude(messages, model):
         client = anthropic.Client(api_key=claude_api_key)
