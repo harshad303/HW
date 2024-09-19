@@ -156,9 +156,6 @@ def generate_summary(text, instruction, model_to_use):
     if model_to_use in ["gpt-3.5-turbo", "gpt-4"]:
         return summarize_with_openai(text, instruction, model_to_use)
 
-    elif model_to_use.startswith("llama"):
-        return summarize_with_llama(text, instruction, model_to_use)
-
     elif model_to_use.startswith("claude"):
         return summarize_with_claude(text, instruction, model_to_use)
 
