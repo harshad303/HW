@@ -174,11 +174,6 @@ def summarize_with_openai(text, instruction, model):
     summary = response.choices[0].message.content
     return summary # commenting this because I am getting the summary twice
 
-def summarize_with_llama(text, instruction, model):
-    llm = OllamaLLM(model=model)
-    prompt = f"{instruction}\n\n{text}"
-    response = llm(prompt)
-    return response
 
 def summarize_with_claude(text, instruction, model):
     client = anthropic.Client(api_key=claude_api_key)
