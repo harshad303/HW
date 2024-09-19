@@ -13,7 +13,7 @@ openai_api_key = st.secrets["OPENAI_KEY"]
 claude_api_key = st.secrets["CLAUDE_KEY"]
 
 # Set API keys for OpenAI and Anthropic
-client = OpenAI(api_key=st.secrets["openai_api_key"])
+client = OpenAI(api_key=st.secrets["OPENAI_KEY"])
 
 # Sidebar elements
 st.sidebar.title("Chat Bot Options")
