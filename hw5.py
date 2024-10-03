@@ -140,7 +140,7 @@ def get_chatbot_response(query, context, conversation_memory, model):
         ]
         try:
             response = st.session_state.openai_client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o-mini",
                 messages=messages,
                 stream=True
             )
