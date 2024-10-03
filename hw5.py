@@ -201,7 +201,7 @@ if not st.session_state.system_ready:
         st.session_state.collection = create_hw4_collection()
         if st.session_state.collection:
             st.session_state.system_ready = True
-            st.success("AI ChatBot is Ready!")
+            st.success("Orange Assitant is ready for you!")
         else:
             st.error("Failed to create or load the document collection. Please check the zip file and try again.")
 
