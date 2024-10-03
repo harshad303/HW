@@ -19,26 +19,26 @@ import chromadb
 st.title("HW 5")
 
 # Function to ensure the OpenAI client is initialized
-def ensure_openai_client():
+def openaiclient():
     if 'openai_client' not in st.session_state:
         api_key = st.secrets["OPENAI_KEY"]
         st.session_state.openai_client = OpenAI(api_key=api_key)
 
 # Function to ensure the Anthropic client is initialized
-def ensure_anthropic_client():
+def anthropicclient():
     if 'anthropic_client' not in st.session_state:
         api_key = st.secrets["CLAUDE_KEY"]
         st.session_state.anthropic_client = Anthropic(api_key=api_key)
 
 # Function to ensure the Google AI client is initialized
-def ensure_google_ai_client():
+def geminiclient():
     if 'google_ai_client' not in st.session_state:
         api_key = st.secrets["g_key"]
         genai.configure(api_key=api_key)
         st.session_state.google_ai_client = genai
 
 # Function to extract HTML files from zip
-def extract_html_from_zip(zip_path):
+def extract_ziphtml(zip_path):
     with tempfile.TemporaryDirectory() as temp_dir:
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(temp_dir)
@@ -53,7 +53,7 @@ def extract_html_from_zip(zip_path):
     return html_files
 
 # Function to create the ChromaDB collection
-def create_hw4_collection():
+def collection_creation():
     if 'HW_URL_Collection' not in st.session_state:
         persist_directory = os.path.join(os.getcwd(), "chroma_db")
         client = chromadb.PersistentClient(path=persist_directory)
@@ -64,11 +64,11 @@ def create_hw4_collection():
             st.error(f"Zip file not found: {zip_path}")
             return None
 
-        html_files = extract_html_from_zip(zip_path)
+        html_files = extract_ziphtml(zip_path)
 
         if collection.count() == 0:
             with st.spinner("Processing content and preparing the system..."):
-                ensure_openai_client()
+                openaiclient()
 
                 for filename, content in html_files.items():
                     try:
@@ -96,11 +96,11 @@ def create_hw4_collection():
     return st.session_state.HW_URL_Collection
 
 # Function to get relevant club info based on the query
-def get_relevant_info(query, model):
+def relenavtinfo_gather(query, model):
     collection = st.session_state.HW_URL_Collection
     
     # Always use OpenAI for embeddings, regardless of the selected model
-    ensure_openai_client()
+    openaiclient()
     try:
         response = st.session_state.openai_client.embeddings.create(
             input=query, model="text-embedding-3-small"
@@ -126,14 +126,14 @@ def get_relevant_info(query, model):
         return "", []
 
 # Function to get chatbot response using the selected LLM
-def get_chatbot_response(query, context, conversation_memory, model):
+def llm_response(query, context, conversation_memory, model):
     system_message = "You are an AI assistant with knowledge from specific documents. Use the provided context to answer the user's questions. If the information is not in the context, say you don't know based on the available information. Maintain consistency with your previous answers."
 
     condensed_history = "\n".join(
         [f"Human: {exchange['question']}\nAI: {exchange['answer']}" for exchange in conversation_memory])
 
     if model == "OpenAI GPT-4":
-        ensure_openai_client()
+        openaiclient()
         messages = [
             {"role": "system", "content": system_message},
             {"role": "user", "content": f"Context: {context}\n\nConversation history:\n{condensed_history}\n\nQuestion: {query}"}
@@ -150,7 +150,7 @@ def get_chatbot_response(query, context, conversation_memory, model):
             return None
 
     elif model == "Anthropic Claude":
-        ensure_anthropic_client()
+        anthropicclient()
         messages = [
             {"role": "user", "content": f"Here's some context information: {context}\n\nConversation history:\n{condensed_history}"},
             {"role": "assistant", "content": "I understand. I'll use this context and conversation history to answer questions consistently. What would you like to know?"},
@@ -170,7 +170,7 @@ def get_chatbot_response(query, context, conversation_memory, model):
             return None
 
     elif model == "Google Gemini":
-        ensure_google_ai_client()
+        geminiclient()
         prompt = f"{system_message}\n\nContext: {context}\n\nConversation history:\n{condensed_history}\n\nHuman: {query}\nAI:"
         try:
             model = st.session_state.google_ai_client.GenerativeModel('gemini-1.0-pro')
@@ -198,7 +198,7 @@ st.title("Orange Assistant")
 
 if not st.session_state.system_ready:
     with st.spinner("Processing documents and preparing the system..."):
-        st.session_state.collection = create_hw4_collection()
+        st.session_state.collection = collection_creation()
         if st.session_state.collection:
             st.session_state.system_ready = True
             st.success("Orange Assitant is ready for you!")
@@ -218,9 +218,9 @@ if st.session_state.system_ready and st.session_state.collection:
         with st.chat_message("user"):
             st.markdown(user_input)
 
-        relevant_texts, relevant_docs = get_relevant_info(user_input, selected_model)
+        relevant_texts, relevant_docs = relenavtinfo_gather(user_input, selected_model)
 
-        response_stream = get_chatbot_response(
+        response_stream = llm_response(
             user_input, relevant_texts, st.session_state.conversation_memory, selected_model)
 
         with st.chat_message("assistant"):
