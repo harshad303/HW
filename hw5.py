@@ -18,7 +18,6 @@ import chromadb
 
 st.title("HW 5")
 
-
 # Function to ensure the OpenAI client is initialized
 def ensure_openai_client():
     if 'openai_client' not in st.session_state:
@@ -181,94 +180,91 @@ def get_chatbot_response(query, context, conversation_memory, model):
             st.error(f"Error getting Gemini response: {str(e)}")
         return None
 
-def main():
-    if 'chat_history' not in st.session_state:
-        st.session_state.chat_history = []
-    if 'conversation_memory' not in st.session_state:
-        st.session_state.conversation_memory = deque(maxlen=5)
-    if 'system_ready' not in st.session_state:
-        st.session_state.system_ready = False
-    if 'collection' not in st.session_state:
-        st.session_state.collection = None
+# The main logic of the application is now at the global scope
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
+if 'conversation_memory' not in st.session_state:
+    st.session_state.conversation_memory = deque(maxlen=5)
+if 'system_ready' not in st.session_state:
+    st.session_state.system_ready = False
+if 'collection' not in st.session_state:
+    st.session_state.collection = None
 
-    st.sidebar.title("Model Selection")
-    selected_model = st.sidebar.radio(
-        "Choose an LLM:", ("OpenAI GPT-4", "Anthropic Claude", "Google Gemini"))
+st.sidebar.title("Model Selection")
+selected_model = st.sidebar.radio(
+    "Choose an LLM:", ("OpenAI GPT-4", "Anthropic Claude", "Google Gemini"))
 
-    st.title("iSchool Chatbot")
+st.title("iSchool Chatbot")
 
-    if not st.session_state.system_ready:
-        with st.spinner("Processing documents and preparing the system..."):
-            st.session_state.collection = create_hw4_collection()
-            if st.session_state.collection:
-                st.session_state.system_ready = True
-                st.success("AI ChatBot is Ready!")
-            else:
-                st.error("Failed to create or load the document collection. Please check the zip file and try again.")
+if not st.session_state.system_ready:
+    with st.spinner("Processing documents and preparing the system..."):
+        st.session_state.collection = create_hw4_collection()
+        if st.session_state.collection:
+            st.session_state.system_ready = True
+            st.success("AI ChatBot is Ready!")
+        else:
+            st.error("Failed to create or load the document collection. Please check the zip file and try again.")
 
-    if st.session_state.system_ready and st.session_state.collection:
-        st.subheader(f"Chat with the AI Assistant (Using {selected_model})")
+if st.session_state.system_ready and st.session_state.collection:
+    st.subheader(f"Chat with the AI Assistant (Using {selected_model})")
 
-        for message in st.session_state.chat_history:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
+    for message in st.session_state.chat_history:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-        user_input = st.chat_input("Ask a question about the documents:")
+    user_input = st.chat_input("Ask a question about the documents:")
 
-        if user_input:
-            with st.chat_message("user"):
-                st.markdown(user_input)
+    if user_input:
+        with st.chat_message("user"):
+            st.markdown(user_input)
 
-            relevant_texts, relevant_docs = get_relevant_info(user_input, selected_model)
+        relevant_texts, relevant_docs = get_relevant_info(user_input, selected_model)
 
-            response_stream = get_chatbot_response(
-                user_input, relevant_texts, st.session_state.conversation_memory, selected_model)
+        response_stream = get_chatbot_response(
+            user_input, relevant_texts, st.session_state.conversation_memory, selected_model)
 
-            with st.chat_message("assistant"):
-                response_placeholder = st.empty()
-                full_response = ""
-                if selected_model == "OpenAI GPT-4":
-                    for chunk in response_stream:
-                        if chunk.choices[0].delta.content is not None:
-                            full_response += chunk.choices[0].delta.content
-                            response_placeholder.markdown(full_response + "▌")
-                elif selected_model == "Anthropic Claude":
-                    for chunk in response_stream:
-                        chunk_type = getattr(chunk, 'type', None)
-                        if chunk_type == 'content_block_delta':
-                            if hasattr(chunk, 'delta') and hasattr(chunk.delta, 'text'):
-                                full_response += chunk.delta.text
-                                response_placeholder.markdown(full_response + "▌")
-                        elif chunk_type == 'message_delta':
-                            if hasattr(chunk, 'delta') and hasattr(chunk.delta, 'content'):
-                                for content_block in chunk.delta.content:
-                                    if content_block.type == 'text':
-                                        full_response += content_block.text
-                                        response_placeholder.markdown(full_response + "▌")
-                elif selected_model == "Google Gemini":
-                    for chunk in response_stream:
-                        full_response += chunk.text
+        with st.chat_message("assistant"):
+            response_placeholder = st.empty()
+            full_response = ""
+            if selected_model == "OpenAI GPT-4":
+                for chunk in response_stream:
+                    if chunk.choices[0].delta.content is not None:
+                        full_response += chunk.choices[0].delta.content
                         response_placeholder.markdown(full_response + "▌")
-                response_placeholder.markdown(full_response)
+            elif selected_model == "Anthropic Claude":
+                for chunk in response_stream:
+                    chunk_type = getattr(chunk, 'type', None)
+                    if chunk_type == 'content_block_delta':
+                        if hasattr(chunk, 'delta') and hasattr(chunk.delta, 'text'):
+                            full_response += chunk.delta.text
+                            response_placeholder.markdown(full_response + "▌")
+                    elif chunk_type == 'message_delta':
+                        if hasattr(chunk, 'delta') and hasattr(chunk.delta, 'content'):
+                            for content_block in chunk.delta.content:
+                                if content_block.type == 'text':
+                                    full_response += content_block.text
+                                    response_placeholder.markdown(full_response + "▌")
+            elif selected_model == "Google Gemini":
+                for chunk in response_stream:
+                    full_response += chunk.text
+                    response_placeholder.markdown(full_response + "▌")
+            response_placeholder.markdown(full_response)
 
-            st.session_state.chat_history.append(
-                {"role": "user", "content": user_input})
-            st.session_state.chat_history.append(
-                {"role": "assistant", "content": full_response})
+        st.session_state.chat_history.append(
+            {"role": "user", "content": user_input})
+        st.session_state.chat_history.append(
+            {"role": "assistant", "content": full_response})
 
-            st.session_state.conversation_memory.append({
-                "question": user_input,
-                "answer": full_response
-            })
+        st.session_state.conversation_memory.append({
+            "question": user_input,
+            "answer": full_response
+        })
 
-            with st.expander("Relevant documents used"):
-                for doc in relevant_docs:
-                    st.write(f"- {doc}")
+        with st.expander("Relevant documents used"):
+            for doc in relevant_docs:
+                st.write(f"- {doc}")
 
-    elif not st.session_state.system_ready:
-        st.info("The system is still preparing. Please wait...")
-    else:
-        st.error("Failed to create or load the document collection. Please check the zip file and try again.")
-
-if __name__ == "_main_":
-    main()
+elif not st.session_state.system_ready:
+    st.info("The system is still preparing. Please wait...")
+else:
+    st.error("Failed to create or load the document collection. Please check the zip file and try again.")
