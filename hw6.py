@@ -1,277 +1,248 @@
-import sys
 import streamlit as st
 from openai import OpenAI
-import os
-from collections import deque
-import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
+from collections import deque
+import os
+import sys
 
-# Workaround for sqlite3 issue in Streamlit Cloud
+# SQLite workaround for Streamlit Cloud
 __import__('pysqlite3')
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-
 import chromadb
+from chromadb.config import Settings
 
-# Function to ensure the OpenAI client is initialized
-def ensure_openai_client():
-    if 'openai_client' not in st.session_state:
-        api_key = st.secrets["OPENAI_KEY"]
-        st.session_state.openai_client = OpenAI(api_key=api_key)
+# App title and description
+st.title("Legal Insights Bot")
+st.write("This bot provides insights on recent legal news, leveraging AI capabilities.")
 
-# Function to create the ChromaDB collection
-def create_news_collection():
-    if 'News_Collection' not in st.session_state:
-        persist_directory = os.path.join(os.getcwd(), "chroma_db")
-        client = chromadb.PersistentClient(path=persist_directory)
-        collection = client.get_or_create_collection("News_Collection")
+# Initialize session state if needed
+if 'chat_log' not in st.session_state:
+    st.session_state.chat_log = []
+if 'memory' not in st.session_state:
+    st.session_state.memory = deque(maxlen=5)
+if 'is_system_ready' not in st.session_state:
+    st.session_state.is_system_ready = False
+if 'openai_session' not in st.session_state:
+    api_key = st.secrets["OPENAI_KEY"]
+    st.session_state.openai_session = OpenAI(api_key=api_key)
+if 'last_query_type' not in st.session_state:
+    st.session_state.last_query_type = None
 
-        csv_path = os.path.join(os.getcwd(), "Example_news_info_for_testing.csv")
-        if not os.path.exists(csv_path):
-            st.error(f"CSV file not found: {csv_path}")
-            return None
-
-        if collection.count() == 0:
-            with st.spinner("Processing content and preparing the system..."):
-                ensure_openai_client()
-
-                df = pd.read_csv(csv_path)
-                for index, row in df.iterrows():
-                    try:
-                        # Convert days_since_2000 to a readable date
-                        date = (datetime(2000, 1, 1) + timedelta(days=int(row['days_since_2000']))).strftime('%Y-%m-%d')
-                        
-                        text = f"Company: {row['company_name']}\nDate: {date}\nDocument: {row['Document']}\nURL: {row['URL']}"
-
-                        response = st.session_state.openai_client.embeddings.create(
-                            input=text, model="text-embedding-3-small"
-                        )
-                        embedding = response.data[0].embedding
-
-                        collection.add(
-                            documents=[text],
-                            metadatas=[{"company": row['company_name'], "date": date, "url": row['URL']}],
-                            ids=[str(index)],
-                            embeddings=[embedding]
-                        )
-                    except Exception as e:
-                        st.error(f"Error processing row {index}: {str(e)}")
-        else:
-            st.info("Using existing vector database.")
-
-        st.session_state.News_Collection = collection
-
-    return st.session_state.News_Collection
-
-# Function to get relevant news info based on the query
-def get_relevant_info(query):
-    collection = st.session_state.News_Collection
-
-    ensure_openai_client()
+# Setup ChromaDB client
+if 'chroma_session' not in st.session_state:
     try:
-        response = st.session_state.openai_client.embeddings.create(
-            input=query, model="text-embedding-3-small"
-        )
-        query_embedding = response.data[0].embedding
+        db_directory = os.path.join(os.getcwd(), "chroma_db")
+        st.session_state.chroma_session = chromadb.PersistentClient(path=db_directory)
+        st.session_state.collection = st.session_state.chroma_session.get_or_create_collection(name="legal_news_data")
+        st.success("ChromaDB is ready to use!")
     except Exception as e:
-        st.error(f"Error creating OpenAI embedding: {str(e)}")
-        return "", []
+        st.error(f"Failed to initialize ChromaDB: {e}")
+        st.stop()
 
-    # Normalize the embedding
-    query_embedding = np.array(query_embedding) / np.linalg.norm(query_embedding)
+# Function to load news data into ChromaDB
+def load_news_data(csv_file, collection):
+    if not os.path.exists(csv_file):
+        st.error("Unable to locate CSV file.")
+        st.stop()
+    
+    data = pd.read_csv(csv_file)
+    for idx, record in data.iterrows():
+        try:
+            date = (datetime(2000, 1, 1) + timedelta(days=int(record['days_since_2000']))).strftime('%Y-%m-%d')
+            content = f"{record['company_name']} on {date}: {record['Document']} ({record['URL']})"
+            
+            # Generate OpenAI embedding
+            embedding = create_openai_embedding(content)
+            collection.add(
+                documents=[content],
+                embeddings=[embedding],
+                metadatas=[{
+                    "company": record['company_name'],
+                    "date": date,
+                    "url": record['URL']
+                }],
+                ids=[f"doc_{idx}"]
+            )
+        except Exception as e:
+            st.error(f"Error processing record {idx}: {e}")
 
-    try:
-        results = collection.query(
-            query_embeddings=[query_embedding.tolist()],
-            n_results=5
-        )
-        relevant_texts = results['documents'][0]
-        relevant_docs = [f"{result['company']} - {result['date']}" for result in results['metadatas'][0]]
-        return "\n".join(relevant_texts), relevant_docs
-    except Exception as e:
-        st.error(f"Error querying the database: {str(e)}")
-        return "", []
-
-def call_llm(model, messages, temp, query, tools=None):
-    ensure_openai_client()
-    try:
-        response = st.session_state.openai_client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temp,
-            tools=tools,
-            tool_choice="auto" if tools else None,
-            stream=True
-        )
-    except Exception as e:
-        st.error(f"Error calling OpenAI API: {str(e)}")
-        return "", "Error occurred while generating response."
-
-    tool_called = None
-    full_response = ""
-    tool_usage_info = ""
-
-    # Create a Streamlit empty container to hold the streaming response
-    response_container = st.empty()
-
-    try:
-        for chunk in response:
-            if hasattr(chunk.choices[0].delta, 'tool_calls') and chunk.choices[0].delta.tool_calls:
-                for tool_call in chunk.choices[0].delta.tool_calls:
-                    if tool_call.function:
-                        tool_called = tool_call.function.name
-                        if tool_called == "get_news_info":
-                            extra_info = get_relevant_info(query)
-                            tool_usage_info = f"Tool used: {tool_called}"
-                            update_system_prompt(messages, extra_info)
-                            recursive_response, recursive_tool_info = call_llm(
-                                model, messages, temp, query, tools)
-                            full_response += recursive_response
-                            tool_usage_info += "\n" + recursive_tool_info
-                            response_container.markdown(full_response)
-                            return full_response, tool_usage_info
-            elif hasattr(chunk.choices[0].delta, 'content') and chunk.choices[0].delta.content:
-                full_response += chunk.choices[0].delta.content
-                # Update the response container with the latest content
-                response_container.markdown(full_response)
-    except Exception as e:
-        st.error(f"Error in streaming response: {str(e)}")
-
-    if tool_called:
-        tool_usage_info = f"Tool used: {tool_called}"
-    else:
-        tool_usage_info = "No tools were used in generating this response."
-
-    return full_response, tool_usage_info
-
-def get_chatbot_response(query, context, conversation_memory):
-    system_message = """You are an AI assistant specialized in providing information about news stories for a large global law firm. 
-    Your primary source of information is the context provided, which contains relevant data extracted from embeddings of news articles.
-
-    Only use the get_news_info tool when:
-
-    a) A specific company or news topic related to a comapny is mentioned in the user's query, OR
-    b) If the user asks a follow-up question about a specific news item mentioned in a previous response.
-
-    Always prioritize using the context for general inquiries about news or types of news.
-
-    When asked to find the most interesting news, consider the following factors:
-    1. Relevance to legal matters
-    2. Global impact
-    3. Potential implications for businesses
-    4. Novelty or uniqueness of the story
-    5. Recency of the news (more recent news is generally more interesting)
-
-    Provide a ranked list of news items with brief explanations of why they are interesting for a global law firm. Include the company name and date for each news item."""
-
-    # Create a condensed conversation history
-    condensed_history = "\n".join(
-        [f"Human: {exchange['question']}\nAI: {exchange['answer']}" for exchange in conversation_memory]
+# Helper function to create embeddings
+def create_openai_embedding(text):
+    st.info("📡 Contacting OpenAI to generate an embedding for your question...")
+    response = st.session_state.openai_session.embeddings.create(
+        input=text,
+        model="text-embedding-3-small"
     )
+    return response.data[0].embedding
 
-    messages = [
-        {"role": "system", "content": system_message},
-        {"role": "user", "content": f"Context: {context}\n\nConversation history:\n{condensed_history}\n\nQuestion: {query}"}
-    ]
+# Function to classify the query as conversational or news-related
+def classify_query(query):
+    # Automatically treat follow-ups as "news-related" if the last query was "news-related"
+    if st.session_state.last_query_type == "news-related" and "expand" in query.lower():
+        return "news-related"
 
-    tools = [
-        {
-            "type": "function",
-            "function": {
-                "name": "get_news_info",
-                "description": "Get information about specific news stories or topics",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "topic": {
-                            "type": "string",
-                            "description": "The news topic, company name, or story to look up"
-                        }
-                    },
-                    "required": ["topic"]
-                }
-            }
-        }
+    classification_prompt = [
+        {"role": "system", "content": "You are an assistant that determines the type of question being asked."},
+        {"role": "user", "content": f"Classify the following query as either 'conversational' or 'news-related': '{query}'"}
     ]
+    response = st.session_state.openai_session.chat.completions.create(
+        model="gpt-4o",
+        messages=classification_prompt,
+        temperature=0
+    )
+    classification = response.choices[0].message.content.strip().lower()
+    st.write(f"Debug: Full classification response = '{classification}'")
+    
+    # Check if "news-related" or "conversational" is in the response
+    if "news-related" in classification:
+        return "news-related"
+    elif "conversational" in classification:
+        return "conversational"
+    else:
+        return "unknown"
+
+# Initialize data if the collection is empty
+csv_file_path = os.path.join(os.getcwd(), "Example_news_info_for_testing.csv")
+if st.session_state.collection.count() == 0:
+    st.info("Loading news articles into the system...")
+    load_news_data(csv_file_path, st.session_state.collection)
+    st.success("News data loaded successfully!")
+else:
+    st.info("Using existing data collection.")
+
+st.session_state.is_system_ready = True
+
+# Display chat interface
+st.subheader("Chat with the Legal Insights Bot")
+
+# Show chat history
+for message in st.session_state.chat_log:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# Capture user input
+user_query = st.chat_input("Enter your query about legal news (e.g., 'latest updates on regulations'):")
+
+if user_query:
+    with st.chat_message("user"):
+        st.markdown(user_query)
 
     try:
-        response, tool_usage_info = call_llm(
-            "gpt-4o", messages, 0.7, query, tools)
-        return response, tool_usage_info
-    except Exception as e:
-        st.error(f"Error getting GPT-4 response: {str(e)}")
-        return None, "Error occurred while generating response."
+        # Classify the query type using the LLM
+        query_type = classify_query(user_query)
 
-def update_system_prompt(messages, extra_info):
-    for message in messages:
-        if message["role"] == "system":
-            message["content"] += f"\n\nAdditional information: {extra_info}"
-            break
+        if query_type == "conversational":
+            # Respond with a conversational message
+            response_text = "I'm here to help with legal news insights! How can I assist you with recent updates?"
+            st.write("Debug: Entered conversational response")
+            with st.chat_message("assistant"):
+                st.markdown(response_text)
 
-# Initialize Streamlit session state and UI elements
-if 'chat_history' not in st.session_state:
-    st.session_state.chat_history = []
-if 'conversation_memory' not in st.session_state:
-    st.session_state.conversation_memory = deque(maxlen=5)
-if 'system_ready' not in st.session_state:
-    st.session_state.system_ready = False
-if 'collection' not in st.session_state:
-    st.session_state.collection = None
+            # Log conversational response to chat history
+            st.session_state.chat_log.append({"role": "user", "content": user_query})
+            st.session_state.chat_log.append({"role": "assistant", "content": response_text})
+            st.session_state.last_query_type = "conversational"
+        
+        elif query_type == "news-related":
+            # Inform about embedding creation
+            st.info("📡 Requesting embedding for your query from OpenAI...")
 
-st.title("My AI News Bot")
-
-if not st.session_state.system_ready:
-    with st.spinner("Processing news articles and preparing the system..."):
-        st.session_state.collection = create_news_collection()
-        if st.session_state.collection:
-            st.session_state.system_ready = True
-            st.success("News Bot is Ready!")
-        else:
-            st.error(
-                "Failed to create or load the news collection. Please check the CSV file and try again.")
-
-if st.session_state.system_ready and st.session_state.collection:
-    st.subheader("Chat with the News Bot (Using OpenAI GPT-4)")
-
-    for message in st.session_state.chat_history:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
-    user_input = st.chat_input("Ask a question about the news:")
-
-    if user_input:
-        with st.chat_message("user"):
-            st.markdown(user_input)
-
-        relevant_texts, relevant_docs = get_relevant_info(user_input)
-        st.write(
-            f"Debug: Relevant texts found: {len(relevant_texts)} characters")
-
-        with st.chat_message("assistant"):
-            response, tool_usage_info = get_chatbot_response(
-                user_input, relevant_texts, st.session_state.conversation_memory)
-
-            if response is None:
-                st.error("Failed to get a response from the AI. Please try again.")
+            # Create query embedding
+            query_embedding = create_openai_embedding(user_query)
+            
+            # Query ChromaDB
+            st.subheader("Database Search")
+            st.info("🔍 Searching the database for related articles...")
+            results = st.session_state.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=5
+            )
+            
+            relevant_articles = results['documents'][0]
+            article_details = [f"{meta['company']} - {meta['date']}" for meta in results['metadatas'][0]]
+            
+            # Display retrieved articles
+            st.subheader("Related Articles")
+            if len(article_details) > 0:
+                st.info(f"📰 Identified {len(article_details)} related news articles:")
+                for detail in article_details:
+                    st.write(f"📄 {detail}")
             else:
-                st.info(tool_usage_info)
+                st.warning("No relevant articles found.")
+            
+            # Prepare LLM input
+            system_instruction = """You are an AI specialized in analyzing news stories with legal relevance for a global law firm. Your role is to evaluate and summarize legal impacts, regulatory changes, and business implications.
 
-        st.session_state.chat_history.append(
-            {"role": "user", "content": user_input})
-        st.session_state.chat_history.append(
-            {"role": "assistant", "content": response})
+            When ranking the most significant stories, prioritize:
+            1. Legal and regulatory implications
+            2. Influence on business practices
+            3. Precedent-setting legal cases or decisions
+            4. Compliance factors
+            5. Sector-wide impact
 
-        st.session_state.conversation_memory.append({
-            "question": user_input,
-            "answer": response
-        })
+            For each article, include:
+            - Summary of the event
+            - Key legal points
+            - Business relevance
+            - Importance to a law firm."""
+            
+            # Build conversation history
+            chat_history = "\n".join([
+                f"User: {entry['question']}\nBot: {entry['answer']}" 
+                for entry in st.session_state.memory
+            ])
+            
+            # Structure message for LLM
+            messages = [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": f"""Context: {' '.join(relevant_articles)}
 
-        with st.expander("Relevant news articles used"):
-            for doc in relevant_docs:
-                st.write(f"- {doc}")
+Previous conversation:
+{chat_history}
 
-elif not st.session_state.system_ready:
-    st.info("The system is still preparing. Please wait...")
-else:
-    st.error(
-        "Failed to create or load the news collection. Please check the CSV file and try again.")
+Query: {user_query}"""
+                }
+            ]
+            
+            # Stream LLM response
+            st.write("🤔 Processing your input and preparing a response...")
+            response = st.session_state.openai_session.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                temperature=0.7,
+                stream=True
+            )
+            
+            # Stream response in real time
+            with st.chat_message("assistant"):
+                response_holder = st.empty()
+                complete_response = ""
+                
+                for chunk in response:
+                    if chunk.choices[0].delta.content:
+                        complete_response += chunk.choices[0].delta.content
+                        response_holder.markdown(complete_response)
+            
+            # Update chat history and memory
+            st.session_state.chat_log.append({"role": "user", "content": user_query})
+            st.session_state.chat_log.append({"role": "assistant", "content": complete_response})
+            st.session_state.memory.append({
+                "question": user_query,
+                "answer": complete_response
+            })
+            st.session_state.last_query_type = "news-related"
+            
+            # Expandable section for article sources
+            with st.expander("📄 View Articles"):
+                for detail in article_details:
+                    st.write(f"- {detail}")
+        
+        else:
+            st.write("Debug: Unhandled classification type")
+            response_text = "I'm not sure how to handle your query. Please try asking in a different way."
+            with st.chat_message("assistant"):
+                st.markdown(response_text)
+    
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
